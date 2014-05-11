@@ -63,8 +63,8 @@ end
 
 local function pdebug(...)
     if not api.debug then return end
-    self.term.setBackgroundColor(colors.black)
-    self.term.setTextColor(colors.yellow)
+    self.display.setBackgroundColor(colors.black)
+    self.display.setTextColor(colors.yellow)
     print(...)
 end
 local pxdebug_y = 1
@@ -101,10 +101,10 @@ end
 local colorAble = extend(widget)
 function colorAble:_init()
     self.c = {bg = nil, fg = nil}
-    if self.parent ~= nil and self.parent.term ~= nil then
-       self.term = self.parent.term
+    if self.parent ~= nil and self.parent.display ~= nil then
+       self.display = self.parent.display
     else
-       self.term = term
+       self.display = term
     end
 end
 function colorAble:setTextColor(color)
@@ -115,10 +115,10 @@ function colorAble:setBackgroundColor(color)
 end
 function colorAble:applyColors()
     if self.c.bg ~= nil then
-        self.term.setBackgroundColor(self.c.bg)
+        self.display.setBackgroundColor(self.c.bg)
     end
     if self.c.fg ~= nil then
-        self.term.setTextColor(self.c.fg)
+        self.display.setTextColor(self.c.fg)
     end
 end
 
@@ -198,8 +198,8 @@ function frame:add(widget)
     if (type(widget) == "table" and widget.setParent ~= nil) then
         widget:setParent(self)
     end
-    if (widget:getParent() ~= nil and widget:getParent().term ~= nil) then
-        widget.term = widget:getParent().term
+    if (widget:getParent() ~= nil and widget:getParent().display ~= nil) then
+        widget.display = widget:getParent().display
     end
     return widget
 end
@@ -213,15 +213,15 @@ function frame:remove(widget)
     return nil
 end
 function frame:draw(screen)
-    --pxdebug(self.term.getCursorPos())
+    --pxdebug(self.display.getCursorPos())
     --pxdebug(self:getCursorPosition())
     --pdebug(self.c.bg)
     
-    if self.term ~= term then
-       term.redirect(self.term)
-    else
-       term.restore()
-    end
+    --if self.display ~= term then
+    --   term.redirect(self.term)
+    --else
+    --   term.restore()
+    --end
 
     if self.c.bg ~= nil then
         for x = 1, self.size.w do
@@ -239,7 +239,7 @@ function frame:draw(screen)
             widget(self)
         elseif not widget.hide then
             if (widget.getPosition ~= nil and widget:getPosition() ~= nil) then
-                self.term.setCursorPos(self:getAbsolutePosition(widget:getPosition()))
+                self.display.setCursorPos(self:getAbsolutePosition(widget:getPosition()))
             end
             widget:draw(self)
         else
@@ -274,10 +274,10 @@ function frame:getRelativePosition(x, y)
     return x - px + 1, y - py + 1
 end
 function frame:getCursorPosition()
-    return self:getRelativePosition(self.term.getCursorPos())
+    return self:getRelativePosition(self.display.getCursorPos())
 end
 function frame:setCursorPosition(x, y)
-    return self.term.setCursorPos(self:getAbsolutePosition(x, y))
+    return self.display.setCursorPos(self:getAbsolutePosition(x, y))
 end
 function frame:frame()
     return self:add(create(frame))
@@ -311,23 +311,32 @@ do
 end
 function screen._init(self, options)
     colorAble._init(self)
-    if options ~= nil and options["term"] ~= nil then
-       self.term = options["term"]
+    if options ~= nil and options["display"] ~= nil then
+       self.display = options["display"]
+       if self.display ~= term then
+           self.display = peripheral.wrap(self.display)
+
+           -- If using a build of ComputerCraft without term.restore, record the current terminal output object:
+           if not term.restore then self.display.restoreTo = term.current() end
+
+           -- Redirect the terminal to the attached monitor:
+           term.redirect(self.display)
+       end
     else
-       self.term = term;
+       self.display = term;
     end
     self.widgets = {}
     self.cb = {draw = nil, adraw = nil, thread = nil}
     self.padding = {t = 0, r = 0, b = 0, l = 0}
 end
 function screen:getSize()
-    return self.term.getSize()
+    return self.display.getSize()
 end
 function screen:draw()
     self:applyColors()
     pxdebug_y = 1
-    self.term.clear()
-    self.term.setCursorPos(1 + self.padding.l, 1 + self.padding.t)
+    self.display.clear()
+    self.display.setCursorPos(1 + self.padding.l, 1 + self.padding.t)
     if self.cb.draw ~= nil then
         self.cb.draw(self)
     end
@@ -336,7 +345,7 @@ function screen:draw()
             widget(self)
         elseif not widget.hide then
             if (widget.getPosition ~= nil and widget:getPosition() ~= nil) then
-                self.term.setCursorPos(widget:getPosition())
+                self.display.setCursorPos(widget:getPosition())
             end
             widget:draw(self)
         end
@@ -345,9 +354,6 @@ function screen:draw()
     if self.cb.adraw ~= nil then
         self.cb.adraw(self)
     end
-
-    -- Restore default
-    term.restore()
 end
 function screen:onDraw(callback)
     self.cb.draw = callback
@@ -380,7 +386,14 @@ function screen:wait()
     until not self.wait
 end
 function screen:stop()
-    term.restore()
+    -- Restore back:
+    if term.restore then
+       term.restore()
+    else
+       if mon.restoreTo then
+          term.redirect(mon.restoreTo)
+       end
+    end
     self.wait = false
 end
 function screen:getScreen()
@@ -394,10 +407,10 @@ function screen:getRelativePosition(x, y)
 end
 function screen:reset()
     pxdebug_y = 1
-    self.term.setTextColor(colors.white)
-    self.term.setBackgroundColor(colors.black)
-    self.term.clear()
-    self.term.setCursorPos(1, 1)
+    self.display.setTextColor(colors.white)
+    self.display.setBackgroundColor(colors.black)
+    self.display.clear()
+    self.display.setCursorPos(1, 1)
 end
 
 -- 
@@ -433,7 +446,7 @@ function text:_write(str)
     if (self.slow ~= nil) then
         textutils.slowWrite(str, self.slow)
     else
-        self.term.write(str)
+        self.display.write(str)
     end
 end
 function text:draw(screen)
@@ -469,11 +482,11 @@ function text:draw(screen)
             elseif (char == "$") then
                 local ccode = string.sub(self.text, offset + 1, offset + 1)
                 if (api.colorcodes[ccode] ~= nil) then
-                    self.term.setTextColor(api.colorcodes[ccode])
+                    self.display.setTextColor(api.colorcodes[ccode])
                     offset = offset + 1
                 elseif (ccode == "r") then
                     if (self.c.fg) then
-                        self.term.setTextColor(self.c.fg)
+                        self.display.setTextColor(self.c.fg)
                     end
                     offset = offset + 1
                 elseif (ccode ~= "$") then
