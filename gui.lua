@@ -212,6 +212,10 @@ function frame:remove(widget)
     end
     return nil
 end
+function frame:removeAll()
+    self.widgets = {}
+    return nil
+end
 function frame:draw(screen)
     --pxdebug(self.display.getCursorPos())
     --pxdebug(self:getCursorPosition())
@@ -298,6 +302,7 @@ do
         "add",
         "click",
         "remove",
+        "removeAll",
         "setPadding",
         "getPadding",
         "getInnerSize",
@@ -395,6 +400,11 @@ function screen:stop()
        end
     end
     self.wait = false
+end
+function screen:clear()
+   self.display.clear()
+   self:removeAll()
+   return self
 end
 function screen:getScreen()
     return self
